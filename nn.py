@@ -69,7 +69,7 @@ class DFF_g(nn.Module):
 		self.hidden_dim = hidden_dim
 
 		if trafo == "sig":
-			expand, compress = (lgnn(), nn.Sigmoid())
+			expand, compress = (lgnn(), (nn.Sigmoid(),))
 
 		if trafo == "log":
 			expand, compress = (Log10(), (Exp10(), clamp()))
@@ -87,7 +87,10 @@ class DFF_g(nn.Module):
 
 	
 
-def flown(x, nn_, base, gamma = 1):
-    z1 = torch.tensor(x, requires_grad=True).reshape(-1,1).to(device)
-    z0 = nn_(z1**(1/gamma))
-    return base.log_prob(z0).view(-1) + torch.log(torch.abs(torch.autograd.grad(torch.sum(z0), z1)[0].view(-1)))
+def flown(z1, nn_, base, gamma = 1):
+	if gamma == 1:
+		z1_shifted = z1
+	else:
+		z1_shifted = z1**(1/gamma)
+	z0, jac = nn_(z1_shifted)
+	return base.log_prob(z0).view(-1) + torch.log(torch.abs(jac.view(-1)))
