@@ -20,16 +20,18 @@ def train(f,
 		  sampling=("dist",), 
 		  print_itr = 250,
 		  fast_jac = True,
+		  loss_out = False,
+		  lr_g = 1e-3
 		  ):
 	beta = t_one
 
 	loss_arr = np.empty((3, iters))
 
-	opt_f = optim.Adam(f.parameters(), lr=lr)
-	opt_g = optim.Adam(g.parameters(), lr=lr)
+	opt_f = optim.NAdam(f.parameters(), lr=lr)
+	opt_g = optim.Adam(g.parameters(), lr=lr_g)
 	
 	if gamma[0]:
-		opt_gamma = optim.Adam((gamma[1],), lr=torch.tensor(1e-3, dtype=torch.float32, device=device))
+		opt_gamma = optim.Adam((gamma[1],), lr=lr_g)
 	else:
 		loss_gamma = torch.tensor(0., dtype=torch.float32, device=device)
 
@@ -74,9 +76,9 @@ def train(f,
 			if itr == 3500:
 				opt_f.param_groups[0]['lr'] = 1e-5
 				opt_g.param_groups[0]['lr'] = 1e-5
-			print(itr, loss.item(), loss_reco.mean().item(), loss_nll_.mean().item(), loss_gamma.item())
+			print(itr, loss.item(), loss_reco.mean().item(), loss_nll_.mean().item())
 
 		loss_arr[0, itr-1] = loss_nll_.mean().item()
 		loss_arr[1, itr-1] = beta*loss_reco.mean().item()
-
-	return loss_arr
+	if loss_out:
+		return loss_arr

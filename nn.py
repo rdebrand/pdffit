@@ -38,7 +38,7 @@ def f_log(input, nn_):
 
 
 class DFF_f(nn.Module):
-	def __init__(self, in_out_dim, hidden_dim, trafo = "sig"):
+	def __init__(self, in_out_dim, hidden_dim, trafo = "sig", w_init_ = True):
 		super().__init__()
 		
 		self.in_out_dim = in_out_dim
@@ -52,7 +52,8 @@ class DFF_f(nn.Module):
 		
 		if trafo == "sig":
 			self.f_fwd = f_sig
-			self.arc.apply(weights_init)
+			if w_init_:
+				self.arc.apply(weights_init)
 
 		if trafo == "log":
 			self.f_fwd = f_log

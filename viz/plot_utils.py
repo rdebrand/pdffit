@@ -21,8 +21,10 @@ def plot_densities(f,
 				   tlabel='Target Beta(1.8, 7.4)', 
 				   blabel='Base Beta(2, 7)', 
 				   flabel="Flow f(z)", 
+				   gflabel ="Flow + Inverse g(f(z))",
 				   gamma=1, 
-				   bounds = (1e-4, 1-1e-4)
+				   bounds = (1e-4, 1-1e-4),
+				   title_fs = 18, label_fs = 15, legend_fs = 10
 				   ):
 	
 	z_t1 = torch.linspace(bounds[0],bounds[1],400).reshape(-1,1).to(device)
@@ -70,23 +72,28 @@ def plot_densities(f,
 		with torch.no_grad():
 			plt.plot(z_t1.view(-1).cpu().numpy(), 
 				fac.reshape(-1)*np.exp(p_phi.detach().cpu().numpy()),
-				'b',lw=1, label='Flow + Inverse g(f(z))')
+				'b',lw=1, label=gflabel)
 			
 	if gamma == 1:	
 		pass
 	else:
 		to_base = f(lg**(1/gamma))
-		p_theta_gamma = p_z0.log_prob(to_base).view(-1) + torch.log(torch.abs(torch.autograd.grad(torch.sum(to_base), lg)[0].view(-1)))
+		if isinstance(f, DFF_f):
+			out, jac = to_base
+			jac = jac * 1/gamma * lg**(1/gamma-1)
+			p_theta_gamma = -p_nlog(p_z0, out, jac).view(-1)
+		else:
+			p_theta_gamma = p_z0.log_prob(to_base).view(-1) + torch.log(torch.abs(torch.autograd.grad(torch.sum(to_base), lg)[0].view(-1)))
 
 		plt.plot(z_t1.view(-1).cpu().numpy(), 
 			fac.reshape(-1)*np.exp(p_theta_gamma.detach().cpu().numpy()),
 			fcolor, alpha = 0.4, ls = "--", lw=1)
 
 
-	plt.title("Density Transformation", fontsize=18)
-	plt.xlabel("x", fontsize=15)
-	plt.ylabel("p(x)", fontsize=15)
-	plt.legend(loc='upper right', fontsize=10)
+	plt.title("Density Transformation", fontsize=title_fs)
+	plt.xlabel("x", fontsize=label_fs)
+	plt.ylabel("p(x)", fontsize=label_fs)
+	plt.legend(loc='upper right', fontsize=legend_fs)
 
 
 def plot_trafo(f):
