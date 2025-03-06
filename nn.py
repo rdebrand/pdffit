@@ -88,10 +88,13 @@ class DFF_g(nn.Module):
 
 	
 
-def flown(z1, nn_, base, gamma = 1):
+def flown(z1, nn_, base, gamma = 1, nd = False):
 	if gamma == 1:
 		z1_shifted = z1
 	else:
 		z1_shifted = z1**(1/gamma)
 	z0, jac = nn_(z1_shifted)
-	return base.log_prob(z0).view(-1) + torch.log(torch.abs(jac.view(-1)))
+	if not nd:
+		return base.log_prob(z0).view(-1) + torch.log(torch.abs(jac.view(-1)))
+	else:
+		return base.log_prob(z0).view(-1) + torch.log(torch.abs(jac.view(-1))) - torch.log(z1_shifted.view(-1))

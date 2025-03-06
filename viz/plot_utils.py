@@ -13,11 +13,14 @@ def plot_densities(f,
 				   p_z0, 
 				   p_z1, 
 				   fac=1., 
-				   target_only = False, 
+				   tb_disp = (True, True),
+				   fi_disp = (True, True),
 				   fcolor="r", 
-				   tcolor="k", 
+				   tcolor="k",
+				   bcolor="grey", 
 				   tlw=4, 
 				   talpha=1., 
+				   balpha=1.,
 				   tlabel='Target Beta(1.8, 7.4)', 
 				   blabel='Base Beta(2, 7)', 
 				   flabel="Flow f(z)", 
@@ -39,15 +42,16 @@ def plot_densities(f,
 		fac = 2*z_t1.cpu().numpy()
 			
 	# Base density
-	if not target_only:
+	if tb_disp[1]:
 		plt.plot(z_t1.view(-1).cpu().numpy(), 
 			fac*np.exp(p_z0.log_prob(z_t1).cpu().numpy()),
-			'grey',lw=4,
-			label=blabel)
-
-	plt.plot(z_t1.view(-1).cpu().numpy(), 
-		fac*np.exp(p_z1.log_prob(z_t1).cpu().numpy()),
-		tcolor,lw=tlw,label=tlabel,alpha=talpha)
+			bcolor, alpha=balpha, lw=4, label=blabel)
+		
+	# Target density
+	if tb_disp[0]:
+		plt.plot(z_t1.view(-1).cpu().numpy(), 
+			fac*np.exp(p_z1.log_prob(z_t1).cpu().numpy()),
+			tcolor,lw=tlw,label=tlabel,alpha=talpha)
 	
 	lg = z_t1.detach().requires_grad_()
 	to_base = f(lg)
@@ -62,7 +66,7 @@ def plot_densities(f,
 			fac.reshape(-1)*np.exp(p_theta.detach().cpu().numpy()),
 			fcolor,lw=1,label=flabel)
 	
-	if not target_only:
+	if fi_disp[1]:
 		if isinstance(f, DFF_f):
 			inv = g(to_base[0])
 		else:

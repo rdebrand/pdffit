@@ -46,11 +46,11 @@ delta_uv = torch.tensor(0.228, device=device)
 delta_dv = torch.tensor(0.104, device=device)
 delta_g1 = torch.tensor(0.249, device=device)
 delta_g2 = torch.tensor(0.249, device=device)
-delta_usea = torch.tensor(0.104, device=device)
-delta_dsea = torch.tensor(0.052, device=device)
-delta_s = torch.tensor(0.010, device=device)
-delta_c = torch.tensor(0.005, device=device)
-delta_b = torch.tensor(0.0005, device=device)
+delta_usea = torch.tensor(0.104, device=device)/2
+delta_dsea = torch.tensor(0.052, device=device)/2
+delta_s = torch.tensor(0.010, device=device)/2
+delta_c = torch.tensor(0.005, device=device)/2
+delta_b = torch.tensor(0.0005, device=device)/2
 
 delta_g = torch.tensor(0.249, device=device) + torch.tensor(0.249, device=device)
 
