@@ -64,3 +64,25 @@ class clamp(nn.Module):
 
     def forward(self, x):
         return clamp_f.apply(x)
+    
+
+class CT(nn.Module):
+	def __init__(self, beta=0.5, coeff=0.5, threshold=20):
+		assert 0 <= beta < 1
+		super().__init__()
+		self.beta = nn.Parameter(torch.tensor(beta))
+		self.beta.requires_grad_()
+		self.coeff = coeff
+		self.threshold = threshold
+            
+	def forward(self, x):
+		beta = self.beta
+		normal_ver = (
+		self.coeff * torch.sigmoid(beta * x / (1 - beta)) * x +
+		(1 - self.coeff) * torch.log(1 + torch.exp(x / (1 - beta))) * (1 - beta)
+		)
+		overflow_ver = (
+		self.coeff * torch.sigmoid(beta * x / (1 - beta)) * x +
+		(1 - self.coeff) * x
+		)
+		return torch.where(x / (1 - beta) <= self.threshold, normal_ver, overflow_ver)

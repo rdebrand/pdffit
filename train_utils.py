@@ -2,6 +2,7 @@ import numpy as np
 
 from . import torch, device
 from .sampling import *
+from .nn_classes import CT
 
 import torch.optim as optim
 
@@ -21,14 +22,41 @@ def train(f,
 		  print_itr = 250,
 		  fast_jac = True,
 		  loss_out = False,
-		  lr_g = 1e-3
+		  lr_g = 1e-3,
+		  g_only = False,
+		  lr_act = None,
 		  ):
 	beta = t_one
 
 	loss_arr = np.empty((3, iters))
 
-	opt_f = optim.NAdam(f.parameters(), lr=lr)
-	opt_g = optim.Adam(g.parameters(), lr=lr_g)
+	if lr_act is None:
+		opt_f = optim.Adam(f.parameters(), lr=lr)
+		opt_g = optim.Adam(g.parameters(), lr=lr_g)
+
+	else:
+		act_pars_f, other_pars_f, act_pars_g, other_pars_g = ([], [], [], [])
+
+		for module in f:
+			if isinstance(module, CT):
+				act_pars_f += list(module.parameters())
+			else:
+				other_pars_f += list(module.parameters())
+
+		for module in g:
+			if isinstance(module, CT):
+				act_pars_g += list(module.parameters())
+			else:
+				other_pars_g += list(module.parameters())
+
+		opt_f = optim.Adam([
+			{'params': other_pars_f, 'lr': lr},
+			{'params': act_pars_f, 'lr': lr_act}
+		])
+		opt_g = optim.Adam([
+			{'params': other_pars_g, 'lr': lr_g},
+			{'params': act_pars_g, 'lr': lr_act}
+		])
 	
 	if gamma[0]:
 		opt_gamma = optim.Adam((gamma[1],), lr=lr_g)
@@ -59,7 +87,8 @@ def train(f,
 
 
 		loss.backward()
-		opt_f.step()
+		if not g_only:
+			opt_f.step()
 		opt_g.step()
 
 		if gamma[0]:

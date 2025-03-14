@@ -19,6 +19,7 @@ def plot_densities(f,
 				   tcolor="k",
 				   bcolor="grey", 
 				   tlw=4, 
+				   blw=4,
 				   talpha=1., 
 				   balpha=1.,
 				   tlabel='Target Beta(1.8, 7.4)', 
@@ -45,7 +46,7 @@ def plot_densities(f,
 	if tb_disp[1]:
 		plt.plot(z_t1.view(-1).cpu().numpy(), 
 			fac*np.exp(p_z0.log_prob(z_t1).cpu().numpy()),
-			bcolor, alpha=balpha, lw=4, label=blabel)
+			bcolor, alpha=balpha,lw=blw,label=blabel)
 		
 	# Target density
 	if tb_disp[0]:
@@ -59,7 +60,7 @@ def plot_densities(f,
 	if isinstance(f, DFF_f):
 		p_theta = -p_nlog(p_z0, *to_base).view(-1)
 	else:
-		p_theta = p_z0.log_prob(to_base).view(-1) + torch.log(torch.abs(torch.autograd.grad(torch.sum(to_base), lg)[0].view(-1)))
+		p_theta = p_z0.log_prob(to_base).view(-1) + torch.log(torch.abs(torch.autograd.grad(torch.sum(to_base), lg, retain_graph=True)[0].view(-1)))
 
 	with torch.no_grad():
 		plt.plot(z_t1.view(-1).cpu().numpy(), 
@@ -71,7 +72,7 @@ def plot_densities(f,
 			inv = g(to_base[0])
 		else:
 			inv = g(to_base)
-		p_phi = p_z0.log_prob(inv).view(-1) + torch.log(torch.abs(torch.autograd.grad(torch.sum(inv), lg)[0].view(-1)))
+		p_phi = p_z0.log_prob(inv).view(-1) + torch.log(torch.abs(torch.autograd.grad(torch.sum(inv), lg)[0].view(-1))) 
 
 		with torch.no_grad():
 			plt.plot(z_t1.view(-1).cpu().numpy(), 
@@ -102,4 +103,7 @@ def plot_densities(f,
 
 def plot_trafo(f):
 	x_range = torch.linspace(1e-4,0.9999,400).reshape(-1,1).to(device)
-	plt.plot(x_range.cpu().numpy(), f(x_range)[0].detach().cpu().numpy())
+	if isinstance(f, DFF_f):
+		plt.plot(x_range.cpu().numpy(), f(x_range)[0].detach().cpu().numpy())
+	else:
+		plt.plot(x_range.cpu().numpy(), f(x_range).detach().cpu().numpy())
