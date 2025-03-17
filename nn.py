@@ -79,6 +79,9 @@ class DFF_f(nn.Module):
 								mod_CT(grad = True),
 								nn.Linear(hidden_dim,in_out_dim)
 								)
+			
+			if w_init_:
+				self.arc.apply(weights_init)
 			self.f_fwd = f_ct_sig
 		
 	def forward(self, x):
