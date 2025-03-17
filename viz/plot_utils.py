@@ -47,13 +47,13 @@ def plot_densities(f,
 	if tb_disp[1]:
 		plt.plot(z_t1.view(-1).cpu().numpy(), 
 			fac*np.exp(p_z0.log_prob(z_t1).cpu().numpy()),
-			bcolor, alpha=balpha,lw=blw,label=blabel)
+			color=bcolor, alpha=balpha,lw=blw,label=blabel)
 		
 	# Target density
 	if tb_disp[0]:
 		plt.plot(z_t1.view(-1).cpu().numpy(), 
 			fac*np.exp(p_z1.log_prob(z_t1).cpu().numpy()),
-			tcolor,lw=tlw,label=tlabel,alpha=talpha)
+			color=tcolor,lw=tlw,label=tlabel,alpha=talpha)
 	
 	lg = z_t1.detach().requires_grad_()
 	to_base = f(lg)
@@ -66,7 +66,7 @@ def plot_densities(f,
 	with torch.no_grad():
 		plt.plot(z_t1.view(-1).cpu().numpy(), 
 			fac.reshape(-1)*np.exp(p_theta.detach().cpu().numpy()),
-			fcolor, lw=1, label=flabel)
+			color=fcolor, lw=1, label=flabel)
 	
 	if fi_disp[1]:
 		if isinstance(f, DFF_f):
@@ -78,7 +78,7 @@ def plot_densities(f,
 		with torch.no_grad():
 			plt.plot(z_t1.view(-1).cpu().numpy(), 
 				fac.reshape(-1)*np.exp(p_phi.detach().cpu().numpy()),
-				icolor, lw=1, label=gflabel)
+				color=icolor, lw=1, label=gflabel)
 			
 	if gamma == 1:	
 		pass
