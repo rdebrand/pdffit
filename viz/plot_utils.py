@@ -16,6 +16,7 @@ def plot_densities(f,
 				   tb_disp = (True, True),
 				   fi_disp = (True, True),
 				   fcolor="r", 
+				   icolor="b",
 				   tcolor="k",
 				   bcolor="grey", 
 				   tlw=4, 
@@ -65,7 +66,7 @@ def plot_densities(f,
 	with torch.no_grad():
 		plt.plot(z_t1.view(-1).cpu().numpy(), 
 			fac.reshape(-1)*np.exp(p_theta.detach().cpu().numpy()),
-			fcolor,lw=1,label=flabel)
+			fcolor, lw=1, label=flabel)
 	
 	if fi_disp[1]:
 		if isinstance(f, DFF_f):
@@ -77,7 +78,7 @@ def plot_densities(f,
 		with torch.no_grad():
 			plt.plot(z_t1.view(-1).cpu().numpy(), 
 				fac.reshape(-1)*np.exp(p_phi.detach().cpu().numpy()),
-				'b',lw=1, label=gflabel)
+				icolor, lw=1, label=gflabel)
 			
 	if gamma == 1:	
 		pass
