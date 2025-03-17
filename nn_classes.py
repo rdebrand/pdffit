@@ -1,5 +1,6 @@
 from . import torch, device
 import torch.nn as nn
+from .analytical import ana_CT
 
 
 t_one = torch.tensor(1., dtype=torch.float32, device=device)
@@ -32,57 +33,49 @@ class lgnn(nn.Module):
 
 
 class Log10(nn.Module):
-    def __init__(self):
-        super().__init__()
+	def __init__(self):
+		super().__init__()
 
-    def forward(self, x):
-        return torch.log10(x)
-    
+	def forward(self, x):
+		return torch.log10(x)
+	
 class Exp10(nn.Module):
-    def __init__(self):
-        super().__init__()
+	def __init__(self):
+		super().__init__()
 
-    def forward(self, x):
-        return torch.pow(10, x)
+	def forward(self, x):
+		return torch.pow(10, x)
 
 
 class clamp_f(torch.autograd.Function):
-    def __init__(self):
-        super().__init__()
-    
-    @staticmethod
-    def forward(ctx, input):
-        return torch.clamp(input,  max = t_clamp_max)
+	def __init__(self):
+		super().__init__()
+	
+	@staticmethod
+	def forward(ctx, input):
+		return torch.clamp(input,  max = t_clamp_max)
 
-    @staticmethod
-    def backward(ctx, grad_output):
-        return t_one * grad_output
-    
+	@staticmethod
+	def backward(ctx, grad_output):
+		return t_one * grad_output
+	
 class clamp(nn.Module):
-    def __init__(self):
-        super().__init__()
+	def __init__(self):
+		super().__init__()
 
-    def forward(self, x):
-        return clamp_f.apply(x)
-    
+	def forward(self, x):
+		return clamp_f.apply(x)
+	
 
 class CT(nn.Module):
-	def __init__(self, beta=0.5, coeff=0.5, threshold=20):
-		assert 0 <= beta < 1
+
+	def __init__(self, grad = False, beta=0.5, coeff=0.5, threshold=20.):
+		assert 0 <= beta <= 1
 		super().__init__()
-		self.beta = nn.Parameter(torch.tensor(beta))
-		self.beta.requires_grad_()
+		self.beta = nn.Parameter(torch.tensor(beta, device=device), True)
 		self.coeff = coeff
 		self.threshold = threshold
-            
+		self.grad = grad
+			
 	def forward(self, x):
-		beta = self.beta
-		normal_ver = (
-		self.coeff * torch.sigmoid(beta * x / (1 - beta)) * x +
-		(1 - self.coeff) * torch.log(1 + torch.exp(x / (1 - beta))) * (1 - beta)
-		)
-		overflow_ver = (
-		self.coeff * torch.sigmoid(beta * x / (1 - beta)) * x +
-		(1 - self.coeff) * x
-		)
-		return torch.where(x / (1 - beta) <= self.threshold, normal_ver, overflow_ver)
+		return ana_CT(x, self.beta, grad_ = self.grad, coeff = self.coeff, threshold = self.threshold)

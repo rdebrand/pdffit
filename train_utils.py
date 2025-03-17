@@ -23,7 +23,7 @@ def train(f,
 		  fast_jac = True,
 		  loss_out = False,
 		  lr_g = 1e-3,
-		  g_only = False,
+		  fg_train = (True, True),
 		  lr_act = None,
 		  ):
 	beta = t_one
@@ -37,13 +37,13 @@ def train(f,
 	else:
 		act_pars_f, other_pars_f, act_pars_g, other_pars_g = ([], [], [], [])
 
-		for module in f:
+		for module in f.arc:
 			if isinstance(module, CT):
 				act_pars_f += list(module.parameters())
 			else:
 				other_pars_f += list(module.parameters())
 
-		for module in g:
+		for module in g.arc:
 			if isinstance(module, CT):
 				act_pars_g += list(module.parameters())
 			else:
@@ -85,11 +85,11 @@ def train(f,
 		if gamma[0]:
 			loss += torch.dist((x_.detach()**gamma[1]).mean(), gamma[2].detach())
 
-
 		loss.backward()
-		if not g_only:
+		if fg_train[0]:
 			opt_f.step()
-		opt_g.step()
+		if fg_train[1]:
+			opt_g.step()
 
 		if gamma[0]:
 			opt_gamma.step()

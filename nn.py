@@ -1,5 +1,5 @@
 from .analytical import *
-from .nn_classes import lgnn, clamp, Log10, Exp10
+from .nn_classes import lgnn, clamp, Log10, Exp10, CT as mod_CT
 import torch.nn as nn
 from torch import addmm, matmul, mul
 
@@ -36,34 +36,57 @@ def f_log(input, nn_):
 	jac = matmul(matmul(inoutgrad*dm2*nn_[2].weight, nn_[1].weight)*dm1, nn_[0].weight)
 	return clp(exp), jac
 
+def f_ct_sig(input, nn_):
+	lg, dlg = logit(input)
+	l1 = addmm(nn_[0].bias, lg, nn_[0].weight.T)
+	ct1, dct1 = ana_CT(l1, nn_[1].beta)
+	l2 = addmm(nn_[2].bias, ct1, nn_[2].weight.T)
+	ct2, dct2 = ana_CT(l2, nn_[3].beta)
+	l3 = addmm(nn_[4].bias, ct2, nn_[4].weight.T)
+	sm, dsm = sigmoid(l3)
+	inoutgrad = mul(dlg, dsm)
+	jac = matmul(matmul(inoutgrad*dct2*nn_[4].weight, nn_[2].weight)*dct1, nn_[0].weight)
+	return sm, jac
+
 
 class DFF_f(nn.Module):
-	def __init__(self, in_out_dim, hidden_dim, trafo = "sig", w_init_ = True):
+	def __init__(self, in_out_dim, hidden_dim, trafo = "sig", act = "mish", w_init_ = True):
 		super().__init__()
 		
 		self.in_out_dim = in_out_dim
 		self.hidden_dim = hidden_dim
 		
-		self.arc = nn.Sequential(
+		if act == "mish":
+			self.arc = nn.Sequential(
+									nn.Linear(in_out_dim,hidden_dim),
+									nn.Linear(hidden_dim,hidden_dim),
+									nn.Linear(hidden_dim,in_out_dim)
+									)
+			
+			if trafo == "sig":
+				self.f_fwd = f_sig
+				if w_init_:
+					self.arc.apply(weights_init)
+
+			if trafo == "log":
+				self.f_fwd = f_log
+		
+		elif act == "ct":
+			self.arc = nn.Sequential(
 								nn.Linear(in_out_dim,hidden_dim),
+								mod_CT(grad = True),
 								nn.Linear(hidden_dim,hidden_dim),
+								mod_CT(grad = True),
 								nn.Linear(hidden_dim,in_out_dim)
 								)
-		
-		if trafo == "sig":
-			self.f_fwd = f_sig
-			if w_init_:
-				self.arc.apply(weights_init)
-
-		if trafo == "log":
-			self.f_fwd = f_log
+			self.f_fwd = f_ct_sig
 		
 	def forward(self, x):
 		return self.f_fwd(x, self.arc)
 	
 
 class DFF_g(nn.Module):
-	def __init__(self, in_out_dim, hidden_dim, trafo = "sig"):
+	def __init__(self, in_out_dim, hidden_dim, trafo = "sig", act = "mish"):
 		super().__init__()
 		
 		self.in_out_dim = in_out_dim
@@ -75,13 +98,25 @@ class DFF_g(nn.Module):
 		if trafo == "log":
 			expand, compress = (Log10(), (Exp10(), clamp()))
 		
-		self.arc = nn.Sequential(expand, 
-								nn.Linear(in_out_dim, hidden_dim),
-								nn.Mish(),
-								nn.Linear(hidden_dim, hidden_dim),
-								nn.Mish(),
-								nn.Linear(hidden_dim,in_out_dim), 
-								*compress)
+		if act == "mish":
+
+			self.arc = nn.Sequential(expand, 
+									nn.Linear(in_out_dim, hidden_dim),
+									nn.Mish(),
+									nn.Linear(hidden_dim, hidden_dim),
+									nn.Mish(),
+									nn.Linear(hidden_dim,in_out_dim), 
+									*compress)
+		
+		elif act == "ct":
+		
+			self.arc = nn.Sequential(expand, 
+									nn.Linear(in_out_dim, hidden_dim),
+									mod_CT(),
+									nn.Linear(hidden_dim, hidden_dim),
+									mod_CT(),
+									nn.Linear(hidden_dim,in_out_dim), 
+									*compress)
 		
 	def forward(self, x):
 		return self.arc(x)
