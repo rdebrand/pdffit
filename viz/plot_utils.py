@@ -27,6 +27,9 @@ def plot_densities(f,
 				   blabel='Base Beta(2, 7)', 
 				   flabel="Flow f(z)", 
 				   gflabel ="Flow + Inverse g(f(z))",
+				   xlabel = "x",
+				   ylabel = "p(x)",
+				   title = "Density Transformation",
 				   gamma=1, 
 				   bounds = (1e-4, 1-1e-4),
 				   title_fs = 18, label_fs = 15, legend_fs = 10
@@ -66,7 +69,7 @@ def plot_densities(f,
 	with torch.no_grad():
 		plt.plot(z_t1.view(-1).cpu().numpy(), 
 			fac.reshape(-1)*np.exp(p_theta.detach().cpu().numpy()),
-			color=fcolor, lw=1, label=flabel)
+			color=fcolor, lw=1, label=flabel, zorder=3)
 	
 	if fi_disp[1]:
 		if isinstance(f, DFF_f):
@@ -78,7 +81,7 @@ def plot_densities(f,
 		with torch.no_grad():
 			plt.plot(z_t1.view(-1).cpu().numpy(), 
 				fac.reshape(-1)*np.exp(p_phi.detach().cpu().numpy()),
-				color=icolor, lw=1, label=gflabel)
+				color=icolor, lw=1, label=gflabel, zorder=2)
 			
 	if gamma == 1:	
 		pass
@@ -96,15 +99,15 @@ def plot_densities(f,
 			fcolor, alpha = 0.4, ls = "--", lw=1)
 
 
-	plt.title("Density Transformation", fontsize=title_fs)
-	plt.xlabel("x", fontsize=label_fs)
-	plt.ylabel("p(x)", fontsize=label_fs)
+	plt.title(title, fontsize=title_fs)
+	plt.xlabel(xlabel, fontsize=label_fs)
+	plt.ylabel(ylabel, fontsize=label_fs)
 	plt.legend(loc='upper right', fontsize=legend_fs)
 
 
-def plot_trafo(f):
+def plot_trafo(f, f_label = "f", color = "C0"):
 	x_range = torch.linspace(1e-4,0.9999,400).reshape(-1,1).to(device)
 	if isinstance(f, DFF_f):
-		plt.plot(x_range.cpu().numpy(), f(x_range)[0].detach().cpu().numpy())
+		plt.plot(x_range.cpu().numpy(), f(x_range)[0].detach().cpu().numpy(), label = f_label, color = color)
 	else:
-		plt.plot(x_range.cpu().numpy(), f(x_range).detach().cpu().numpy())
+		plt.plot(x_range.cpu().numpy(), f(x_range).detach().cpu().numpy(), label = f_label, color = color)
