@@ -48,9 +48,42 @@ def f_ct_sig(input, nn_):
 	jac = matmul(matmul(inoutgrad*dct2*nn_[4].weight, nn_[2].weight)*dct1, nn_[0].weight)
 	return sm, jac
 
+class f_ct_sig_mult_init:
+	def __init__(self, n_hidden_l):
+		self.n_hidden_l = n_hidden_l
+
+	def __call__(self, input, nn_):
+		return self.f_ct_sig_mult(input, nn_)
+
+	def f_ct_sig_mult(self, input, nn_):
+
+		lg, dlg = logit(input)
+
+		l = addmm(nn_[0].bias, lg, nn_[0].weight.T)
+		ct, dct1 = ana_CT(l, nn_[1].beta)
+
+		dct_list = torch.empty((self.n_hidden_l, *dct1.shape), device=device)
+		
+		for i in range(1, self.n_hidden_l+1):
+			l = addmm(nn_[2*i].bias, ct, nn_[2*i].weight.T)
+			ct, dct_list[i-1] = ana_CT(l, nn_[2*i+1].beta)
+
+		l = addmm(nn_[-1].bias, ct, nn_[-1].weight.T)
+
+		sm, dsm = sigmoid(l)
+
+		inoutgrad = mul(dlg, dsm)
+		
+		jac = nn_[-1].weight
+		for i in range(1,self.n_hidden_l+1):
+			jac = (dct_list[-i]*jac) @ nn_[-1 - 2*i].weight
+		jac = (dct1*jac) @ nn_[0].weight
+
+		return sm, inoutgrad * jac
+
 
 class DFF_f(nn.Module):
-	def __init__(self, in_out_dim, hidden_dim, trafo = "sig", act = "mish", w_init_ = True):
+	def __init__(self, in_out_dim, hidden_dim, trafo = "sig", act = "mish", w_init_ = True, n_hidden_l = 1):
 		super().__init__()
 		
 		self.in_out_dim = in_out_dim
@@ -72,17 +105,29 @@ class DFF_f(nn.Module):
 				self.f_fwd = f_log
 		
 		elif act == "ct":
-			self.arc = nn.Sequential(
-								nn.Linear(in_out_dim,hidden_dim),
-								mod_CT(grad = True),
-								nn.Linear(hidden_dim,hidden_dim),
-								mod_CT(grad = True),
-								nn.Linear(hidden_dim,in_out_dim)
-								)
+
+			if n_hidden_l == 1:
+				self.arc = nn.Sequential(
+									nn.Linear(in_out_dim,hidden_dim),
+									mod_CT(grad = True),
+									nn.Linear(hidden_dim,hidden_dim),
+									mod_CT(grad = True),
+									nn.Linear(hidden_dim,in_out_dim)
+									)
+				self.f_fwd = f_ct_sig
+			
+			else:
+				expansion   = nn.ModuleList([nn.Linear(in_out_dim,hidden_dim), mod_CT(grad = True)])
+				for _ in range(n_hidden_l):
+					expansion.extend(nn.ModuleList([nn.Linear(hidden_dim,hidden_dim), mod_CT(grad = True)]))
+				compression = nn.ModuleList([nn.Linear(hidden_dim,in_out_dim)])
+
+				self.arc = nn.Sequential(*(expansion + compression))
+
+				self.f_fwd = f_ct_sig_mult_init(n_hidden_l)
 			
 			if w_init_:
 				self.arc.apply(weights_init)
-			self.f_fwd = f_ct_sig
 		
 	def forward(self, x):
 		return self.f_fwd(x, self.arc)
@@ -132,6 +177,7 @@ def flown(z1, nn_, base, gamma = 1, nd = False):
 	else:
 		z1_shifted = z1**(1/gamma)
 	z0, jac = nn_(z1_shifted)
+	#z0 = torch.clamp(z0_out, min = 1e-10, max = None); jac = torch.clamp(jac, min = None, max = 1e5)
 	if not nd:
 		return base.log_prob(z0).view(-1) + torch.log(torch.abs(jac.view(-1)))
 	else:

@@ -1,1 +1,1 @@
-import parametrizations
+from .parametrizations import *
