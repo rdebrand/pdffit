@@ -176,9 +176,16 @@ def flown(z1, nn_, base, gamma = 1, nd = False):
 		z1_shifted = z1
 	else:
 		z1_shifted = z1**(1/gamma)
-	z0, jac = nn_(z1_shifted)
-	#z0 = torch.clamp(z0_out, min = 1e-10, max = None); jac = torch.clamp(jac, min = None, max = 1e5)
+	z0_out, jac = nn_(z1_shifted)
+	z0 = torch.clamp(z0_out, min = 1e-24, max = 1-1e-5)#; jac = torch.clamp(jac, min = 1e-24, max = 1e24)
 	if not nd:
-		return base.log_prob(z0).view(-1) + torch.log(torch.abs(jac.view(-1)))
+		return base.log_prob(z0).view(-1) + torch.log(torch.clamp(torch.abs(jac), min = 1e-24, max = 1e24).view(-1))
 	else:
 		return base.log_prob(z0).view(-1) + torch.log(torch.abs(jac.view(-1))) - torch.log(z1_shifted.view(-1))
+
+def flown_comb(z1, nn_, base_val, base_sea, scale):
+	z0_out, jac = nn_(z1)
+	z0 = torch.clamp(z0_out, min = 1e-24, max = 1-1e-5)
+	jac = torch.log(torch.clamp(torch.abs(jac), min = 1e-24, max = 1e24).view(-1))
+	return (scale 	 * (base_val.log_prob(z0).view(-1) + jac).exp() +
+		   (1-scale) * (base_sea.log_prob(z0).view(-1) + jac).exp()  )
