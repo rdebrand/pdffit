@@ -7,7 +7,7 @@ from torch import addmm, matmul, mul
 def weights_init(m):
 	if isinstance(m, nn.Linear):
 		std = 2/(m.in_features + m.out_features)
-		torch.nn.init.normal_(m.weight, mean = 3e-2, std=std)
+		torch.nn.init.normal_(m.weight, mean = 4e-2, std=std)
 
 
 def f_sig(input, nn_):
@@ -174,9 +174,12 @@ class DFF_g(nn.Module):
 def flown(z1, nn_, base, gamma = 1, nd = False):
 	if gamma == 1:
 		z1_shifted = z1
+		gamma_grad = torch.tensor([1.], device = device)
 	else:
 		z1_shifted = z1**(1/gamma)
+		gamma_grad = (1/gamma) * (z1**(1/gamma - 1))
 	z0_out, jac = nn_(z1_shifted)
+	jac = jac * gamma_grad
 	z0 = torch.clamp(z0_out, min = 1e-24, max = 1-1e-5)#; jac = torch.clamp(jac, min = 1e-24, max = 1e24)
 	if not nd:
 		return base.log_prob(z0).view(-1) + torch.log(torch.clamp(torch.abs(jac), min = 1e-24, max = 1e24).view(-1))
@@ -189,3 +192,22 @@ def flown_comb(z1, nn_, base_val, base_sea, scale):
 	jac = torch.log(torch.clamp(torch.abs(jac), min = 1e-24, max = 1e24).view(-1))
 	return (scale 	 * (base_val.log_prob(z0).view(-1) + jac).exp() +
 		   (1-scale) * (base_sea.log_prob(z0).view(-1) + jac).exp()  )
+
+class flown_comb_init:
+	def __init__(self, z1, base_val, base_sea):
+		self.z1 = z1 
+		self.base_val_lp = base_val.log_prob
+		self.base_sea_lp = base_sea.log_prob
+
+	def __call__(self, nn_, scale, jac_out = False):
+		z0_out, jac = nn_(self.z1)
+		z0 = torch.clamp(z0_out, min = 1e-24, max = 1-1e-5)
+		jac = torch.log(torch.clamp(torch.abs(jac), min = 1e-24, max = 1e24).view(-1))
+		scale = torch.clamp(scale, min = 0., max = 1.)
+		if not jac_out:
+			return (scale 	 * (self.base_val_lp(z0).view(-1) + jac).exp() +
+				(1-scale) * (self.base_sea_lp(z0).view(-1) + jac).exp()  )
+		else: 
+			return (scale 	 * (self.base_val_lp(z0).view(-1) + jac).exp() +
+				(1-scale) * (self.base_sea_lp(z0).view(-1) + jac).exp()  ,
+				jac.exp())

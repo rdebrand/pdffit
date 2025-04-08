@@ -96,7 +96,7 @@ def plot_densities(f,
 
 		plt.plot(z_t1.view(-1).cpu().numpy(), 
 			fac.reshape(-1)*np.exp(p_theta_gamma.detach().cpu().numpy()),
-			fcolor, alpha = 0.4, ls = "--", lw=1)
+			color="green", ls = "--", lw=1, zorder=3)
 
 
 	plt.title(title, fontsize=title_fs)
