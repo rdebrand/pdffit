@@ -3,94 +3,6 @@ from .nn_classes import lgnn, clamp, Log10, Exp10, CT as mod_CT
 import torch.nn as nn
 from torch import addmm, matmul, mul
 
-
-def weights_init(m):
-	"""
-	Weight initialization for monotonically increasing transformation.
-	"""
-
-	if isinstance(m, nn.Linear):
-		std = 2/(m.in_features + m.out_features)
-		torch.nn.init.normal_(m.weight, mean = 4e-2, std=std)
-
-
-def f_sig(input, nn_):
-	lg, dlg = logit(input)
-	l1 = addmm(nn_[0].bias, lg, nn_[0].weight.T)
-	m1, dm1 = mish(l1)
-	l2 = addmm(nn_[1].bias, m1, nn_[1].weight.T)
-	m2, dm2 = mish(l2)
-	l3 = addmm(nn_[2].bias, m2, nn_[2].weight.T)
-	sm, dsm = sigmoid(l3)
-	inoutgrad = mul(dlg, dsm)
-	jac = matmul(matmul(inoutgrad*dm2*nn_[2].weight, nn_[1].weight)*dm1, nn_[0].weight)
-	return sm, jac
-
-clp = clamp()
-
-def f_log(input, nn_):
-	lg10, dlg10 = log10(input)
-	l1 = addmm(nn_[0].bias, lg10, nn_[0].weight.T)
-	m1, dm1 = mish(l1)
-	l2 = addmm(nn_[1].bias, m1, nn_[1].weight.T)
-	m2, dm2 = mish(l2)
-	l3 = addmm(nn_[2].bias, m2, nn_[2].weight.T)
-	exp, dexp = exp10(l3)
-	inoutgrad = mul(dlg10, dexp)
-	jac = matmul(matmul(inoutgrad*dm2*nn_[2].weight, nn_[1].weight)*dm1, nn_[0].weight)
-	return clp(exp), jac
-
-def f_ct_sig(input, nn_):
-	lg, dlg = logit(input)
-	l1 = addmm(nn_[0].bias, lg, nn_[0].weight.T)
-	ct1, dct1 = ana_CT(l1, nn_[1].beta)
-	l2 = addmm(nn_[2].bias, ct1, nn_[2].weight.T)
-	ct2, dct2 = ana_CT(l2, nn_[3].beta)
-	l3 = addmm(nn_[4].bias, ct2, nn_[4].weight.T)
-	sm, dsm = sigmoid(l3)
-	inoutgrad = mul(dlg, dsm)
-	jac = matmul(matmul(inoutgrad*dct2*nn_[4].weight, nn_[2].weight)*dct1, nn_[0].weight)
-	return sm, jac
-
-class f_ct_sig_mult_init:
-	"""
-	Initialization for a network with CT activation functions and
-	custom number of hidden layers.
-	"""
-
-	def __init__(self, n_hidden_l):
-		self.n_hidden_l = n_hidden_l
-
-	def __call__(self, input, nn_):
-		return self.f_ct_sig_mult(input, nn_)
-
-	def f_ct_sig_mult(self, input, nn_):
-
-		lg, dlg = logit(input)	# Expansion to reals
-
-		l = addmm(nn_[0].bias, lg, nn_[0].weight.T)	# Input layer
-		ct, dct1 = ana_CT(l, nn_[1].beta)
-
-		dct_list = torch.empty((self.n_hidden_l, *dct1.shape), device=device)	# Gradient tensor
-		
-		for i in range(1, self.n_hidden_l+1):	# Run the hidden layers
-			l = addmm(nn_[2*i].bias, ct, nn_[2*i].weight.T)
-			ct, dct_list[i-1] = ana_CT(l, nn_[2*i+1].beta)
-
-		l = addmm(nn_[-1].bias, ct, nn_[-1].weight.T)	# Final layer
-
-		sm, dsm = sigmoid(l)	# Compression to unit interval
-
-		inoutgrad = mul(dlg, dsm)	# Gradients for logit and sigmoid
-		
-		jac = nn_[-1].weight	# Jacobian for the last layer
-		for i in range(1,self.n_hidden_l+1):	# Adding Jacobians for the hidden layers
-			jac = (dct_list[-i]*jac) @ nn_[-1 - 2*i].weight
-		jac = (dct1*jac) @ nn_[0].weight	# Adding Jacobian for the first layer
-
-		return sm, inoutgrad * jac
-
-
 class DFF_f(nn.Module):
 	"""
 	Torch module to initialize the parameters for the 
@@ -201,6 +113,91 @@ class DFF_g(nn.Module):
 	def forward(self, x):
 		return self.arc(x)
 
+def weights_init(m, mean = 4e-2):
+	"""
+	Weight initialization for monotonically increasing transformation.
+	"""
+
+	if isinstance(m, nn.Linear):
+		std = 2/(m.in_features + m.out_features)
+		torch.nn.init.normal_(m.weight, mean = mean, std=std)
+
+
+def f_sig(input, nn_):
+	lg, dlg = logit(input)
+	l1 = addmm(nn_[0].bias, lg, nn_[0].weight.T)
+	m1, dm1 = mish(l1)
+	l2 = addmm(nn_[1].bias, m1, nn_[1].weight.T)
+	m2, dm2 = mish(l2)
+	l3 = addmm(nn_[2].bias, m2, nn_[2].weight.T)
+	sm, dsm = sigmoid(l3)
+	inoutgrad = mul(dlg, dsm)
+	jac = matmul(matmul(inoutgrad*dm2*nn_[2].weight, nn_[1].weight)*dm1, nn_[0].weight)
+	return sm, jac
+
+clp = clamp()
+
+def f_log(input, nn_):
+	lg10, dlg10 = log10(input)
+	l1 = addmm(nn_[0].bias, lg10, nn_[0].weight.T)
+	m1, dm1 = mish(l1)
+	l2 = addmm(nn_[1].bias, m1, nn_[1].weight.T)
+	m2, dm2 = mish(l2)
+	l3 = addmm(nn_[2].bias, m2, nn_[2].weight.T)
+	exp, dexp = exp10(l3)
+	inoutgrad = mul(dlg10, dexp)
+	jac = matmul(matmul(inoutgrad*dm2*nn_[2].weight, nn_[1].weight)*dm1, nn_[0].weight)
+	return clp(exp), jac
+
+def f_ct_sig(input, nn_):
+	lg, dlg = logit(input)
+	l1 = addmm(nn_[0].bias, lg, nn_[0].weight.T)
+	ct1, dct1 = ana_CT(l1, nn_[1].beta)
+	l2 = addmm(nn_[2].bias, ct1, nn_[2].weight.T)
+	ct2, dct2 = ana_CT(l2, nn_[3].beta)
+	l3 = addmm(nn_[4].bias, ct2, nn_[4].weight.T)
+	sm, dsm = sigmoid(l3)
+	inoutgrad = mul(dlg, dsm)
+	jac = matmul(matmul(inoutgrad*dct2*nn_[4].weight, nn_[2].weight)*dct1, nn_[0].weight)
+	return sm, jac
+
+class f_ct_sig_mult_init:
+	"""
+	Initialization for a network with CT activation functions and
+	custom number of hidden layers.
+	"""
+
+	def __init__(self, n_hidden_l):
+		self.n_hidden_l = n_hidden_l
+
+	def __call__(self, input, nn_):
+		return self.f_ct_sig_mult(input, nn_)
+
+	def f_ct_sig_mult(self, input, nn_):
+
+		lg, dlg = logit(input)	# Expansion to reals
+
+		l = addmm(nn_[0].bias, lg, nn_[0].weight.T)	# Input layer
+		ct, dct1 = ana_CT(l, nn_[1].beta)
+
+		dct_list = torch.empty((self.n_hidden_l, *dct1.shape), device=device)	# Gradient tensor
+		
+		for i in range(1, self.n_hidden_l+1):	# Run the hidden layers
+			l = addmm(nn_[2*i].bias, ct, nn_[2*i].weight.T)
+			ct, dct_list[i-1] = ana_CT(l, nn_[2*i+1].beta)
+
+		l = addmm(nn_[-1].bias, ct, nn_[-1].weight.T)	# Final layer
+
+		sm, dsm = sigmoid(l)	# Compression to unit interval
+
+		inoutgrad = mul(dlg, dsm)	# Gradients for logit and sigmoid
+		
+		jac = nn_[-1].weight	# Jacobian for the last layer
+		for i in range(1,self.n_hidden_l+1):	# Adding Jacobians for the hidden layers
+			jac = (dct_list[-i]*jac) @ nn_[-1 - 2*i].weight
+		jac = (dct1*jac) @ nn_[0].weight	# Adding Jacobian for the first layer
+
+		return sm, inoutgrad * jac
 	
 
 def flown(z1, nn_, base, gamma = 1):
@@ -254,7 +251,7 @@ def flown_comb(z1, nn_, base_val, base_sea, scale):
 	"""
 
 	z0_out, jac = nn_(z1)
-	z0 = torch.clamp(z0_out, min = 1e-24, max = 1-1e-5)
+	z0 = torch.clamp(z0_out, min = 1e-24, max = 1-1e-5) # Avoid ValueError's 
 	jac = torch.log(torch.clamp(torch.abs(jac), min = 1e-24, max = 1e24).view(-1))
 	return (scale 	 * (base_val.log_prob(z0).view(-1) + jac).exp() +
 		   (1-scale) * (base_sea.log_prob(z0).view(-1) + jac).exp()  )
@@ -295,7 +292,7 @@ class flown_comb_init:
 		"""
 
 		z0_out, jac = nn_(self.z1)
-		z0 = torch.clamp(z0_out, min = 1e-24, max = 1-1e-5)
+		z0 = torch.clamp(z0_out, min = 1e-24, max = 1-1e-5)	# Avoid ValueError's 
 		jac = torch.log(torch.clamp(torch.abs(jac), min = 1e-24, max = 1e24).view(-1))
 		scale = torch.clamp(scale, min = 0., max = 1.)
 

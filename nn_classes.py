@@ -3,12 +3,16 @@ import torch.nn as nn
 from .analytical import ana_CT
 
 
-t_one = torch.tensor(1., dtype=torch.float32, device=device)
-t_two = torch.tensor(2., dtype=torch.float32, device=device)
-t_clamp_max = torch.tensor(1-1e-4, dtype=torch.float32, device=device)
+t_one = torch.tensor(1., device=device)
+t_two = torch.tensor(2., device=device)
+t_clamp_max = torch.tensor(1-1e-4, device=device)
 
 
 class lgnn_f(torch.autograd.Function):
+	"""
+	Logit that can be differentiated by autograd.
+	"""
+	
 	def __init__(self):
 		super().__init__()
 	
@@ -25,6 +29,7 @@ class lgnn_f(torch.autograd.Function):
 	
 
 class lgnn(nn.Module):
+
 	def __init__(self):
 		super().__init__()
 
@@ -33,13 +38,16 @@ class lgnn(nn.Module):
 
 
 class Log10(nn.Module):
+
 	def __init__(self):
 		super().__init__()
 
 	def forward(self, x):
 		return torch.log10(x)
 	
+	
 class Exp10(nn.Module):
+
 	def __init__(self):
 		super().__init__()
 
@@ -48,6 +56,7 @@ class Exp10(nn.Module):
 
 
 class clamp_f(torch.autograd.Function):
+
 	def __init__(self):
 		super().__init__()
 	
@@ -59,7 +68,9 @@ class clamp_f(torch.autograd.Function):
 	def backward(ctx, grad_output):
 		return t_one * grad_output
 	
+	
 class clamp(nn.Module):
+
 	def __init__(self):
 		super().__init__()
 
@@ -68,6 +79,9 @@ class clamp(nn.Module):
 	
 
 class CT(nn.Module):
+	"""
+	Torch module for CT function.
+	"""
 
 	def __init__(self, grad = False, beta=0.5, coeff=0.5, threshold=20.):
 		assert 0 <= beta <= 1
