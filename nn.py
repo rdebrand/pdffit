@@ -201,14 +201,14 @@ class f_ct_sig_mult_init:
 	
 
 def flown(z1, nn_, base, gamma = 1):
-	"""
+	r"""
 	Density transformation with changes of variables.
 	Used for likelihood computation or evaluation of 
 	the flown density.
 
 	Args:
 		z1 (torch.Tensor): Tensor of data at t=1.
-		nn\_ (pdffit.nn.DFF_f): Backward neural network.
+		nn_ (pdffit.nn.DFF_f): Backward neural network.
 		base (torch.distributions.distribution.Distribution):
 			The base distribution (e.g. Beta).
 		gamma (float): Exponent for the γ-transformation.
@@ -230,7 +230,7 @@ def flown(z1, nn_, base, gamma = 1):
 	return base.log_prob(z0).view(-1) + torch.log(torch.clamp(torch.abs(jac), min = 1e-24, max = 1e24).view(-1))
 
 def flown_comb(z1, nn_, base_val, base_sea, scale):
-	"""
+	r"""
 	Density transformation with changes of variables.
 	Used for likelihood computation or evaluation of 
 	the flown density. 
@@ -239,7 +239,7 @@ def flown_comb(z1, nn_, base_val, base_sea, scale):
 
 	Args:
 		z1 (torch.Tensor): Tensor of data at t=1.
-		nn\_ (pdffit.nn.DFF_f): Backward neural network.
+		nn_ (pdffit.nn.DFF_f): Backward neural network.
 		base_val (torch.distributions.distribution.Distribution):
 			The base valence distribution (e.g. Beta).
 		base_sea (torch.distributions.distribution.Distribution):
@@ -282,9 +282,9 @@ class flown_comb_init:
 		self.base_sea_lp = base_sea.log_prob
 
 	def __call__(self, nn_, scale, jac_out = False):
-		"""
+		r"""
 		Args:
-			nn\_ (pdffit.nn.DFF_f): Backward neural network.
+			nn_ (pdffit.nn.DFF_f): Backward neural network.
 				The base sea distribution (e.g. Beta).
 			scale (float): The proprtion between valence and sea base.
 			jac_out (Bool): Additionally return the jacobian of the 
