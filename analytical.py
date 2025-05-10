@@ -1,8 +1,6 @@
 from . import torch, device
 
-t_one = torch.tensor(1., device=device)
-t_two = torch.tensor(2., device=device)
-ln10 = torch.log(torch.tensor(10., device=device))
+ln10 = torch.log(torch.tensor(10.))
 
 sp = torch.nn.Softplus()
 th = torch.nn.Tanh()
@@ -12,21 +10,21 @@ def mish(l):
 	Mish activation function and gradient.
 	"""
 	thspm = th(sp(l))
-	return torch.mul(l, thspm), torch.addcmul(thspm, l, torch.mul(torch.sigmoid(l), (t_one - torch.pow(thspm, t_two))))
+	return torch.mul(l, thspm), torch.addcmul(thspm, l, torch.mul(torch.sigmoid(l), (1. - torch.pow(thspm, 2.))))
 
 def logit(s):
 	"""
 	Logit expansion and gradient.
 	"""
 	lg = torch.logit(s)
-	return lg, t_one/(s*(t_one - s))
+	return lg, 1./(s*(1. - s))
 
 def sigmoid(l):
 	"""
 	Sigmoid compression and gradient.
 	"""
 	sg = torch.sigmoid(l)
-	return sg, sg*(t_one - sg)
+	return sg, sg*(1. - sg)
 
 def log10(s):
 	return torch.log10(s), 1/(ln10*s)

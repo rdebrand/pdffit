@@ -2,6 +2,7 @@ from .analytical import *
 from .nn_classes import lgnn, clamp, Log10, Exp10, CT as mod_CT
 import torch.nn as nn
 from torch import addmm, matmul, mul
+from . import device
 
 class DFF_f(nn.Module):
 	"""
@@ -15,14 +16,16 @@ class DFF_f(nn.Module):
 		act (str): Activation functions between the layers. Default: ``"mish"``.
 		w_init (Bool): If ``True`` use custom weight initialization,
 			else use the torch default.
+		w_init_mean (Float): The mean for the weight initialization Gaussian.
 		n_hidden_l (Int): Number of hidden layers. Default: ``1``.
 	"""
 
-	def __init__(self, in_out_dim = 1, hidden_dim = 64, trafo = "sig", act = "mish", w_init_ = True, n_hidden_l = 1):
+	def __init__(self, in_out_dim = 1, hidden_dim = 64, trafo = "sig", act = "mish", w_init_ = True, w_init_mean = 4e-2, n_hidden_l = 1, res = False):
 		super().__init__()
 		
 		self.in_out_dim = in_out_dim
 		self.hidden_dim = hidden_dim
+		self.weights_init = weights_init_const(w_init_mean)
 		
 		if act == "mish":
 			self.arc = nn.Sequential(				# Placeholder parameter initialization
@@ -34,9 +37,9 @@ class DFF_f(nn.Module):
 			if trafo == "sig":
 				self.f_fwd = f_sig
 				if w_init_:
-					self.arc.apply(weights_init)
+					self.arc.apply(self.weights_init)
 
-			if trafo == "log":
+			elif trafo == "log":
 				self.f_fwd = f_log
 		
 		elif act == "ct":
@@ -49,7 +52,10 @@ class DFF_f(nn.Module):
 					mod_CT(grad = True),
 					nn.Linear(hidden_dim,in_out_dim)
 					)
-				self.f_fwd = f_ct_sig
+				if res == False:
+					self.f_fwd = f_ct_sig
+				else:
+					self.f_fwd = f_ct_sig_res
 			
 			else:	# Extends the network to add more linear layer parameters
 				expansion = nn.ModuleList([nn.Linear(in_out_dim,hidden_dim), mod_CT(grad = True)])
@@ -62,7 +68,7 @@ class DFF_f(nn.Module):
 				self.f_fwd = f_ct_sig_mult_init(n_hidden_l)
 			
 			if w_init_:
-				self.arc.apply(weights_init)
+				self.arc.apply(self.weights_init)
 		
 	def forward(self, x):
 		return self.f_fwd(x, self.arc)
@@ -113,14 +119,18 @@ class DFF_g(nn.Module):
 	def forward(self, x):
 		return self.arc(x)
 
-def weights_init(m, mean = 4e-2):
+class weights_init_const:
 	"""
 	Weight initialization for monotonically increasing transformation.
 	"""
 
-	if isinstance(m, nn.Linear):
-		std = 2/(m.in_features + m.out_features)
-		torch.nn.init.normal_(m.weight, mean = mean, std=std)
+	def __init__(self, mean):
+		self.mean = mean
+
+	def __call__(self, m):
+		if isinstance(m, nn.Linear):
+			std = 2/(m.in_features + m.out_features)
+			torch.nn.init.normal_(m.weight, mean = self.mean, std=std)
 
 
 def f_sig(input, nn_):
@@ -161,6 +171,18 @@ def f_ct_sig(input, nn_):
 	jac = matmul(matmul(inoutgrad*dct2*nn_[4].weight, nn_[2].weight)*dct1, nn_[0].weight)
 	return sm, jac
 
+def f_ct_sig_res(input, nn_):
+	lg, dlg = logit(input)
+	l1 = addmm(nn_[0].bias, lg, nn_[0].weight.T)
+	ct1, dct1 = ana_CT(l1, nn_[1].beta)
+	l2 = addmm(nn_[2].bias, ct1, nn_[2].weight.T)
+	ct2, dct2 = ana_CT(l2, nn_[3].beta)
+	l3 = addmm(nn_[4].bias, ct2, nn_[4].weight.T)
+	sm, dsm = sigmoid(l3 + lg)
+	inoutgrad = mul(dlg, dsm)
+	jac = matmul(matmul(inoutgrad*dct2*nn_[4].weight, nn_[2].weight)*dct1, nn_[0].weight)
+	return sm, jac+inoutgrad
+
 class f_ct_sig_mult_init:
 	"""
 	Initialization for a network with CT activation functions and
@@ -180,7 +202,7 @@ class f_ct_sig_mult_init:
 		l = addmm(nn_[0].bias, lg, nn_[0].weight.T)	# Input layer
 		ct, dct1 = ana_CT(l, nn_[1].beta)
 
-		dct_list = torch.empty((self.n_hidden_l, *dct1.shape), device=device)	# Gradient tensor
+		dct_list = torch.empty((self.n_hidden_l, *dct1.shape), device = l.device)	# Gradient tensor
 		
 		for i in range(1, self.n_hidden_l+1):	# Run the hidden layers
 			l = addmm(nn_[2*i].bias, ct, nn_[2*i].weight.T)
@@ -193,7 +215,7 @@ class f_ct_sig_mult_init:
 		inoutgrad = mul(dlg, dsm)	# Gradients for logit and sigmoid
 		
 		jac = nn_[-1].weight	# Jacobian for the last layer
-		for i in range(1,self.n_hidden_l+1):	# Adding Jacobians for the hidden layers
+		for i in range(1,self.n_hidden_l+1):   	# Adding Jacobians for the hidden layers
 			jac = (dct_list[-i]*jac) @ nn_[-1 - 2*i].weight
 		jac = (dct1*jac) @ nn_[0].weight	# Adding Jacobian for the first layer
 
@@ -219,7 +241,7 @@ def flown(z1, nn_, base, gamma = 1):
 
 	if gamma == 1:
 		z1_shifted = z1
-		gamma_grad = torch.tensor([1.], device = device)
+		gamma_grad = 1.
 
 	else:
 		z1_shifted = z1**(1/gamma)
@@ -293,7 +315,7 @@ class flown_comb_init:
 
 		z0_out, jac = nn_(self.z1)
 		z0 = torch.clamp(z0_out, min = 1e-24, max = 1-1e-5)	# Avoid ValueError's 
-		jac = torch.log(torch.clamp(torch.abs(jac), min = 1e-24, max = 1e24).view(-1))
+		jac = torch.log(torch.abs(jac).view(-1))
 		scale = torch.clamp(scale, min = 0., max = 1.)
 
 		if not jac_out:
